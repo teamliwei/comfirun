@@ -1,0 +1,15 @@
+# --- secrets: never commit ---
+.env
+*.env
+!*.env.example
+
+# --- runtime data ---
+data/
+ComfyUI/
+
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
