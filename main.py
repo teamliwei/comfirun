@@ -20,6 +20,7 @@ Run:
 from __future__ import annotations
 
 import argparse
+from contextlib import asynccontextmanager
 import asyncio
 import os
 import shutil
@@ -41,14 +42,6 @@ from tunnel import TunnelManager
 from workflow_registry import get_workflow, list_workflows
 
 logger = setup_logging()
-
-app = FastAPI(title="ComfyRun", version="1.0.0")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 def _build_bridge(mock: bool):
@@ -103,26 +96,44 @@ job_manager.ws_manager = ws_manager
 SKIP_COMFY = False  # set by --skip-comfy
 
 
-@app.on_event("startup")
-async def startup() -> None:
+@asynccontextmanager
+async def lifespan(_app):
+    # ---- startup ----
     config.ensure_directories()
     config.ensure_manifest()
     job_manager.load_manifest()
     await job_manager.restore_and_reenqueue()
     await job_manager.start_worker()
     if not SKIP_COMFY:
-        try:
+        if USE_MOCK:
             await comfy.start()
-        except Exception as exc:
-            # Server still boots: jobs can be queued; ComfyUI respawns lazily.
-            logger.error("ComfyUI startup deferred: %s", exc)
+        else:
+            # Real mode: spawn ComfyUI and WAIT for its API (up to 10 min)
+            # before accepting requests, so clients never submit into a
+            # backend that cannot run yet.
+            if not (config.COMFY_DIR / "main.py").exists():
+                raise RuntimeError(
+                    f"ComfyUI not found at {config.COMFY_DIR}. "
+                    "Run 'python main.py --setup' (or 'bash run.sh --setup') first, "
+                    "or start with --mock."
+                )
+            logger.info("Waiting for ComfyUI to start on port %s ...", config.COMFY_PORT)
+            await comfy.start()  # start() blocks until the API answers
+            logger.info("ComfyUI is ready - server accepting requests.")
     logger.info("ComfyRun server ready on port %s", config.API_PORT)
-
-
-@app.on_event("shutdown")
-async def shutdown() -> None:
+    yield
+    # ---- shutdown ----
     tunnel.stop()
     await comfy.stop()
+
+
+app = FastAPI(title="ComfyRun", version="1.0.0", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ----------------------------------------------------------------- helpers --

@@ -32,6 +32,17 @@ done
 echo "== ComfyRun server bootstrap =="
 echo "python: $(python3 --version)"
 
+# ------------------------------------------------- real mode preconditions --
+if [[ "$MOCK" == "0" && "$DO_SETUP" == "0" ]]; then
+  if [[ ! -f ComfyUI/main.py ]]; then
+    echo "ERROR: ComfyUI is not installed here ($(pwd)/ComfyUI)." >&2
+    echo "  Real mode needs the ComfyUI checkout + models." >&2
+    echo "  Run once:   bash run.sh --setup     (long: clones ComfyUI + downloads models)" >&2
+    echo "  Then start: bash run.sh --real" >&2
+    exit 1
+  fi
+fi
+
 # --------------------------------------------------------------- dependencies --
 echo "== [1/3] Installing server dependencies =="
 python3 -m pip install -q -r requirements.txt
