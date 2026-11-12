@@ -10,8 +10,8 @@ CustomTkinter desktop client.
 Clone, bootstrap, run — one cell:
 
 ```python
-!git clone https://github.com/Luisjesch/cfrunnr.git
-%cd /content/cfrunnr
+!git clone https://github.com/teamliwei/comfirun.git
+%cd /content/comfirun
 !bash run.sh
 ```
 
