@@ -13,7 +13,7 @@ and the cell returns as soon as the tunnel URL is printed:
 ```python
 !git clone https://github.com/teamliwei/comfirun.git
 %cd /content/comfirun
-!bash start_bg.sh
+!bash run.sh
 ```
 
 Watch the output for:
@@ -31,8 +31,8 @@ pipeline (queue, progress, results zip) end to end.
 
 Useful follow-ups:
 - `!tail -n 50 server.log` — live server logs
-- `bash stop_server.sh` — stop the background server
-- `bash start_bg.sh --real` — restart in real mode (after `--setup`)
+- `bash run.sh stop` — stop the background server
+- `bash run.sh --real` — restart in real mode (after `--setup`)
 
 ## Real generation (GPU runtime + models)
 
@@ -40,14 +40,14 @@ One-time setup (long: clones ComfyUI + 6 custom nodes, downloads the Qwen
 Image 2.1 / SCAIL-2 model set):
 
 ```bash
-bash start_bg.sh --setup
+bash run.sh --setup
 ```
 
 Then run with the real ComfyUI bridge — startup blocks until ComfyUI's API
 is ready before accepting requests:
 
 ```bash
-bash start_bg.sh --real
+bash run.sh --real
 ```
 
 `--real` spawns ComfyUI as a managed subprocess on `127.0.0.1:8188`
