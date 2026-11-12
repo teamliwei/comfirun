@@ -7,24 +7,32 @@ CustomTkinter desktop client.
 
 ## Quick test on Colab (no GPU needed)
 
-Clone, bootstrap, run — one cell:
+Clone, bootstrap, run — one cell. The server starts **in the background**
+and the cell returns as soon as the tunnel URL is printed:
 
 ```python
 !git clone https://github.com/teamliwei/comfirun.git
 %cd /content/comfirun
-!bash run.sh
+!bash start_bg.sh
 ```
 
-That installs dependencies, installs `cloudflared`, and starts the server in
-**mock mode** with a Cloudflare quick tunnel. Watch the log for:
+Watch the output for:
 
 ```
-Public tunnel URL: https://xxxx.trycloudflare.com
+=======================================================
+  SERVER IS UP
+  URL:  https://xxxx.trycloudflare.com
+=======================================================
 ```
 
 Point the ComfyRun desktop client at that URL and submit jobs — they are
 simulated and return placeholder outputs, so you can verify the full
 pipeline (queue, progress, results zip) end to end.
+
+Useful follow-ups:
+- `!tail -n 50 server.log` — live server logs
+- `bash stop_server.sh` — stop the background server
+- `bash start_bg.sh --real` — restart in real mode (after `--setup`)
 
 ## Real generation (GPU runtime + models)
 
@@ -32,13 +40,14 @@ One-time setup (long: clones ComfyUI + 6 custom nodes, downloads the Qwen
 Image 2.1 / SCAIL-2 model set):
 
 ```bash
-bash run.sh --setup
+bash start_bg.sh --setup
 ```
 
-Then run with the real ComfyUI bridge:
+Then run with the real ComfyUI bridge — startup blocks until ComfyUI's API
+is ready before accepting requests:
 
 ```bash
-bash run.sh --real
+bash start_bg.sh --real
 ```
 
 `--real` spawns ComfyUI as a managed subprocess on `127.0.0.1:8188`

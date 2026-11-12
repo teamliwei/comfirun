@@ -13,3 +13,7 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+
+# --- background runtime ---
+server.log
+server.pid
