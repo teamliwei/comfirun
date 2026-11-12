@@ -1,0 +1,258 @@
+{
+  "_comment": "SCAIL-2 Image-to-Video (Wan 2.1 I2V backbone, SAM3 tracking, RIFE interpolation) - API-format prompt graph extracted from docs/scail2_colab_only.txt run_headless.py. Dynamic fields (prompts, frames, rife, seed) are injected by workflow_registry.build_prompt_graph().",
+  "165": {
+    "class_type": "UnetLoaderGGUF",
+    "inputs": {
+      "unet_name": "SCAIL-2-Q4_K_M.gguf"
+    }
+  },
+  "49": {
+    "class_type": "WanChunkFeedForward",
+    "inputs": {
+      "model": ["165", 0],
+      "chunks": 4,
+      "dim_threshold": 4096
+    }
+  },
+  "11": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "model": ["49", 0],
+      "lora_name": "Wan21_I2V_14B_lightx2v_cfg_step_distill_lora_rank64.safetensors",
+      "strength_model": 0.8
+    }
+  },
+  "95": {
+    "class_type": "ModelSamplingSD3",
+    "inputs": {
+      "model": ["11", 0],
+      "shift": 5.0
+    }
+  },
+  "18": {
+    "class_type": "BasicScheduler",
+    "inputs": {
+      "model": ["11", 0],
+      "scheduler": "simple",
+      "steps": 6,
+      "denoise": 1.0
+    }
+  },
+  "27": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": "euler"
+    }
+  },
+  "9": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "type": "wan",
+      "device": "default"
+    }
+  },
+  "7": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "wan_2.1_vae.safetensors"
+    }
+  },
+  "75": {
+    "class_type": "CLIPVisionLoader",
+    "inputs": {
+      "clip_name": "clip_vision_h.safetensors"
+    }
+  },
+  "86": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "sam3.1_multiplex_fp16.safetensors"
+    }
+  },
+  "87": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["86", 1],
+      "text": ""
+    }
+  },
+  "179": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["9", 0],
+      "text": ""
+    }
+  },
+  "180": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["9", 0],
+      "text": ""
+    }
+  },
+  "33": {
+    "class_type": "VHS_LoadVideo",
+    "inputs": {
+      "video": "headless_drive.mp4",
+      "force_rate": 0,
+      "custom_width": 0,
+      "custom_height": 0,
+      "frame_load_cap": 65,
+      "skip_first_frames": 0,
+      "select_every_nth": 3,
+      "format": "AnimateDiff"
+    }
+  },
+  "89": {
+    "class_type": "ImageResizeKJv2",
+    "inputs": {
+      "image": ["33", 0],
+      "width": 416,
+      "height": 720,
+      "upscale_method": "lanczos",
+      "keep_proportion": "resize",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 16,
+      "device": "cpu"
+    }
+  },
+  "178": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "headless_ref.png"
+    }
+  },
+  "76": {
+    "class_type": "CLIPVisionEncode",
+    "inputs": {
+      "clip_vision": ["75", 0],
+      "image": ["178", 0],
+      "crop": "none"
+    }
+  },
+  "85": {
+    "class_type": "SAM3_VideoTrack",
+    "inputs": {
+      "images": ["89", 0],
+      "model": ["86", 0],
+      "conditioning": ["87", 0],
+      "detection_threshold": 0.5,
+      "max_objects": 1,
+      "detect_interval": 2
+    }
+  },
+  "91": {
+    "class_type": "SAM3_VideoTrack",
+    "inputs": {
+      "images": ["178", 0],
+      "model": ["86", 0],
+      "conditioning": ["87", 0],
+      "detection_threshold": 0.5,
+      "max_objects": 1,
+      "detect_interval": 2
+    }
+  },
+  "104": {
+    "class_type": "SCAIL2ColoredMask",
+    "inputs": {
+      "driving_track_data": ["85", 0],
+      "ref_track_data": ["91", 0],
+      "replacement_mode": true,
+      "object_indices": "",
+      "sort_by": "left_to_right"
+    }
+  },
+  "177": {
+    "class_type": "KikoPurgeVRAM",
+    "inputs": {
+      "anything": ["104", 0],
+      "mode": "aggressive",
+      "report_memory": true
+    }
+  },
+  "114": {
+    "class_type": "WanSCAILToVideo",
+    "inputs": {
+      "positive": ["179", 0],
+      "negative": ["180", 0],
+      "vae": ["7", 0],
+      "pose_video": ["89", 0],
+      "pose_video_mask": ["177", 0],
+      "reference_image": ["178", 0],
+      "reference_image_mask": ["104", 1],
+      "clip_vision_output": ["76", 0],
+      "width": 416,
+      "height": 720,
+      "length": 65,
+      "batch_size": 1,
+      "pose_strength": 1.0,
+      "pose_start": 0.0,
+      "pose_end": 1.0,
+      "video_frame_offset": 0,
+      "previous_frame_count": 5,
+      "replacement_mode": true
+    }
+  },
+  "176": {
+    "class_type": "KikoPurgeVRAM",
+    "inputs": {
+      "anything": ["114", 2],
+      "mode": "aggressive",
+      "report_memory": true
+    }
+  },
+  "19": {
+    "class_type": "SamplerCustom",
+    "inputs": {
+      "model": ["95", 0],
+      "positive": ["114", 0],
+      "negative": ["114", 1],
+      "sampler": ["27", 0],
+      "sigmas": ["18", 0],
+      "latent_image": ["176", 0],
+      "add_noise": true,
+      "noise_seed": 0,
+      "cfg": 1.0
+    }
+  },
+  "6": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["19", 1],
+      "vae": ["7", 0]
+    }
+  },
+  "184": {
+    "class_type": "RIFE VFI",
+    "inputs": {
+      "frames": ["6", 0],
+      "ckpt_name": "rife47.pth",
+      "clear_cache_after_n_frames": 10,
+      "multiplier": 3,
+      "fast_mode": true,
+      "ensemble": true,
+      "scale_factor": 1.0,
+      "dtype": "float16",
+      "batch_size": 1,
+      "torch_compile": false
+    }
+  },
+  "8": {
+    "class_type": "VHS_VideoCombine",
+    "inputs": {
+      "images": ["184", 0],
+      "frame_rate": 24,
+      "loop_count": 0,
+      "filename_prefix": "Wan21_SCAIL2_Headless",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true
+    }
+  }
+}

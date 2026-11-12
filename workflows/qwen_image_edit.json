@@ -1,0 +1,133 @@
+{
+  "_comment": "Qwen Image 2.1 Edit (NoctQ) - flattened to ComfyUI API format from docs/comfyui-qwen2.1-noctq.txt. Dynamic fields (prompts, seed, steps, size, sampler, image slots) are injected by workflow_registry.build_prompt_graph(). Node ids mirror the original subgraph node ids.",
+  "451": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "NoctQ_V4_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "453": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    }
+  },
+  "454": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+    }
+  },
+  "456": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    }
+  },
+  "457": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["458", 0],
+      "vae": ["454", 0]
+    }
+  },
+  "458": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": 0,
+      "steps": 12,
+      "cfg": 1.0,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1.0,
+      "model": ["469", 0],
+      "positive": ["474", 0],
+      "negative": ["474", 1],
+      "latent_image": ["468", 0]
+    }
+  },
+  "461": {
+    "class_type": "SaveImageAdvanced",
+    "inputs": {
+      "images": ["457", 0],
+      "filename_prefix": "Qwen_image_2.1",
+      "format": "png",
+      "format.bit_depth": "8-bit",
+      "format.input_color_space": "sRGB"
+    }
+  },
+  "468": {
+    "class_type": "ComfySwitchNode",
+    "inputs": {
+      "on_false": ["474", 2],
+      "on_true": ["456", 0],
+      "switch": true
+    }
+  },
+  "469": {
+    "class_type": "QwenImage21Cache",
+    "inputs": {
+      "model": ["451", 0],
+      "device": "auto",
+      "dtype": "default"
+    }
+  },
+  "474": {
+    "class_type": "TextEncodeQwenImage21",
+    "inputs": {
+      "clip": ["453", 0],
+      "vae": ["454", 0],
+      "prompt": ["484", 0],
+      "negative_prompt": "blurry, ugly, deformed",
+      "resolution": 1024,
+      "image_1": ["img_1", 0]
+    }
+  },
+  "477": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    }
+  },
+  "484": {
+    "class_type": "ComfySwitchNode",
+    "inputs": {
+      "on_false": "",
+      "on_true": ["500", 0],
+      "switch": false
+    }
+  },
+  "485": {
+    "class_type": "BatchImagesNode",
+    "inputs": {
+      "image0": ["img_1", 0]
+    }
+  },
+  "500": {
+    "class_type": "TextGenerate",
+    "inputs": {
+      "clip": ["477", 0],
+      "image": ["485", 0],
+      "prompt": "",
+      "max_length": 16256,
+      "sampling_mode": "on",
+      "sampling_mode.temperature": 1.0,
+      "sampling_mode.top_k": 20,
+      "sampling_mode.top_p": 0.95,
+      "sampling_mode.min_p": 0.05,
+      "sampling_mode.repetition_penalty": 1.05,
+      "sampling_mode.seed": 0,
+      "sampling_mode.presence_penalty": 0.0,
+      "thinking": true,
+      "use_default_template": false,
+      "mtp": "auto"
+    }
+  }
+}
