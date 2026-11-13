@@ -123,34 +123,39 @@ if [[ -f "$PIDFILE" ]]; then
 fi
 
 echo "Starting server in background (log: $(pwd)/$LOG)..."
-nohup python3 main.py "${ARGS[@]}" >> "$LOG" 2>&1 &
+# Full detachment: new session (setsid), stdin cut off, output to the log
+# file only. The process is disowned so NOTHING stays attached to the
+# notebook cell - not ComfyUI, not the tunnel, nothing.
+if command -v setsid >/dev/null 2>&1; then
+  setsid nohup python3 main.py "${ARGS[@]}" >> "$LOG" 2>&1 < /dev/null &
+else
+  nohup python3 main.py "${ARGS[@]}" >> "$LOG" 2>&1 < /dev/null &
+fi
 PID=$!
 echo "$PID" > "$PIDFILE"
+disown "$PID" 2>/dev/null || true
 echo "pid: $PID"
 
 DEADLINE=$((SECONDS + WAIT_SECONDS))
 while (( SECONDS < DEADLINE )); do
   if ! kill -0 "$PID" 2>/dev/null; then
-    echo ""
-    echo "=== server process exited - last log lines: ==="
-    tail -n 30 "$LOG"
+    echo "SERVER PROCESS EXITED during startup. Reason (one line shown by: !tail -n 30 $LOG)"
     exit 1
   fi
   URL=$(grep -oE "https://[a-z0-9-]+\.trycloudflare\.com" "$LOG" | head -1 || true)
   if [[ -n "$URL" ]]; then
     echo ""
     echo "======================================================="
-    echo "  SERVER IS UP"
+    echo "  SERVER IS UP (running in background)"
     echo "  URL:  $URL"
-    echo "  saved to: data/tunnel_url.txt"
-    echo "  view logs:  !tail -n 50 $LOG"
-    echo "  stop:       bash run.sh stop"
+    echo "  logs: !tail -n 50 $LOG   |   stop: bash run.sh stop"
     echo "======================================================="
     exit 0
   fi
   sleep 1
 done
 
-echo "Tunnel URL not seen after ${WAIT_SECONDS}s - last log lines:"
-tail -n 30 "$LOG"
-exit 1
+# Not an error: the server is still starting/running in the background.
+echo "Tunnel URL not seen yet after ${WAIT_SECONDS}s - server continues starting in the background."
+echo "Check it with: !tail -n 20 $LOG"
+exit 0
