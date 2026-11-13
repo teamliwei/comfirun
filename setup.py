@@ -110,7 +110,13 @@ def download_models(comfy_dir: Path) -> None:
                 shutil.copyfile(cached, target_path)
             print(f"Installed {filename} -> {dest_subpath}/")
         except Exception as exc:
-            print(f"WARNING: failed to download {filename}: {exc}")
+            note = ""
+            if filename == "rife47.pth":
+                note = (
+                    " (non-fatal: ComfyUI-Frame-Interpolation downloads RIFE "
+                    "weights automatically on first use)"
+                )
+            print(f"WARNING: failed to download {filename}: {exc}{note}")
 
 
 def run_setup() -> None:

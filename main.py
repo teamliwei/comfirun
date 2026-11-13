@@ -418,9 +418,15 @@ def main() -> None:
     config.ensure_manifest()
 
     if args.setup:
+        # Setup is a one-shot command: prepare ComfyUI + models and EXIT.
+        # Falling through into uvicorn.run here would silently boot a
+        # blocking, tunnel-less server (the Colab cell hangs forever).
+        # run.sh launches the server as its own step.
         import setup as setup_mod
 
         setup_mod.run_setup()
+        print("Setup complete - start the server with: bash run.sh --real")
+        return
 
     if args.mock and not USE_MOCK:
         USE_MOCK = True

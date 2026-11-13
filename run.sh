@@ -69,14 +69,17 @@ if [[ "$MOCK" == "0" && "$DO_SETUP" == "0" ]]; then
 fi
 
 # --------------------------------------------------------------- dependencies --
+# All verbose output (pip, model downloads, ComfyUI boot) is written to
+# server.log ONLY - the notebook cell shows step banners and the URL block.
 echo "== [1/3] Installing server dependencies =="
-python3 -m pip install -q -r requirements.txt
+python3 -m pip install -q -r requirements.txt >> "$LOG" 2>&1
 
 # ------------------------------------------------- optional ComfyUI setup --
 if [[ "$DO_SETUP" == "1" ]]; then
-  echo "== [2/3] ComfyUI setup (clone + custom nodes + model downloads) =="
-  echo "   (this downloads tens of GB and can take a long time)"
-  python3 main.py --setup
+  echo "== [2/3] ComfyUI setup: cloning + downloading models (tens of GB) =="
+  echo "   This can take a very long time. Detailed output: $LOG"
+  python3 main.py --setup >> "$LOG" 2>&1
+  echo "   Setup finished."
 else
   echo "== [2/3] Skipping ComfyUI setup (pass --setup for the full model install) =="
 fi
@@ -86,7 +89,7 @@ if [[ "$TUNNEL" == "1" ]] && ! command -v cloudflared >/dev/null 2>&1; then
   echo "== Installing cloudflared =="
   BIN=/usr/local/bin/cloudflared
   if [[ $EUID -ne 0 ]]; then BIN="$HOME/.local/bin/cloudflared"; mkdir -p "$HOME/.local/bin"; fi
-  wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O "$BIN"
+  wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O "$BIN" >> "$LOG" 2>&1
   chmod +x "$BIN"
   export PATH="$PATH:$(dirname "$BIN")"
 fi
@@ -120,7 +123,7 @@ if [[ -f "$PIDFILE" ]]; then
 fi
 
 echo "Starting server in background (log: $(pwd)/$LOG)..."
-nohup python3 main.py "${ARGS[@]}" > "$LOG" 2>&1 &
+nohup python3 main.py "${ARGS[@]}" >> "$LOG" 2>&1 &
 PID=$!
 echo "$PID" > "$PIDFILE"
 echo "pid: $PID"
