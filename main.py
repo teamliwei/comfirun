@@ -22,7 +22,6 @@ from __future__ import annotations
 import argparse
 from contextlib import asynccontextmanager
 import asyncio
-import os
 import shutil
 import zipfile
 from pathlib import Path
@@ -44,17 +43,7 @@ from workflow_registry import get_workflow, list_workflows
 logger = setup_logging()
 
 
-def _build_bridge(mock: bool):
-    """Pick the real ComfyUI bridge or the mock (GPU-less) bridge."""
-    if mock:
-        from mock_comfy import MockComfyBridge
-
-        return MockComfyBridge()
-    return ComfyBridge()
-
-
-USE_MOCK = os.getenv("COMFYRUN_MOCK", "").strip().lower() in ("1", "true", "yes")
-comfy = _build_bridge(USE_MOCK)
+comfy = ComfyBridge()
 job_manager = JobManager()
 tunnel = TunnelManager()
 job_manager.comfy = comfy
@@ -94,6 +83,8 @@ ws_manager = WebSocketManager()
 job_manager.ws_manager = ws_manager
 
 SKIP_COMFY = False  # set by --skip-comfy
+TUNNEL_ENABLED = False  # set by --tunnel
+RUN_PORT = config.API_PORT
 
 
 @asynccontextmanager
@@ -105,22 +96,26 @@ async def lifespan(_app):
     await job_manager.restore_and_reenqueue()
     await job_manager.start_worker()
     if not SKIP_COMFY:
-        if USE_MOCK:
-            await comfy.start()
-        else:
-            # Real mode: spawn ComfyUI and WAIT for its API (up to 10 min)
-            # before accepting requests, so clients never submit into a
-            # backend that cannot run yet.
-            if not (config.COMFY_DIR / "main.py").exists():
-                raise RuntimeError(
-                    f"ComfyUI not found at {config.COMFY_DIR}. "
-                    "Run 'python main.py --setup' (or 'bash run.sh --setup') first, "
-                    "or start with --mock."
-                )
-            logger.info("Waiting for ComfyUI to start on port %s ...", config.COMFY_PORT)
-            await comfy.start()  # start() blocks until the API answers
-            logger.info("ComfyUI is ready - server accepting requests.")
+        # Spawn ComfyUI and WAIT for its API (up to 10 min) before accepting
+        # requests, so clients never submit into a backend that cannot run yet.
+        if not (config.COMFY_DIR / "main.py").exists():
+            raise RuntimeError(
+                f"ComfyUI not found at {config.COMFY_DIR}. "
+                "Run 'python main.py --setup' (or 'bash setup.sh') first."
+            )
+        logger.info("Waiting for ComfyUI to start on port %s ...", config.COMFY_PORT)
+        await comfy.start()  # start() blocks until the API answers
+        logger.info("ComfyUI is ready - server accepting requests.")
     logger.info("ComfyRun server ready on port %s", config.API_PORT)
+    # The tunnel starts HERE, after the app can actually serve requests.
+    # Starting it earlier published a working-looking trycloudflare URL while
+    # initialization (model loading) was still running.
+    if TUNNEL_ENABLED:
+        tunnel.start(
+            port=RUN_PORT,
+            on_url=lambda url: logger.info("Public tunnel URL: %s", url),
+            log_path=config.CLOUDFLARED_LOG,
+        )
     yield
     # ---- shutdown ----
     tunnel.stop()
@@ -362,7 +357,9 @@ async def job_results(job_id: str):
     elif not outputs_dir.exists() or not any(outputs_dir.iterdir()):
         raise HTTPException(status_code=500, detail="No output files found for this job")
 
-    zip_path = zip_outputs(job_id, outputs_dir)
+    # Zip off the event loop: a synchronous zip of large outputs would block
+    # the loop and starve every WS client's ping/pong until they disconnect.
+    zip_path = await asyncio.to_thread(zip_outputs, job_id, outputs_dir)
     return FileResponse(
         zip_path,
         media_type="application/zip",
@@ -404,11 +401,9 @@ async def websocket_endpoint(ws: WebSocket):
 
 
 def main() -> None:
-    global comfy, USE_MOCK
     parser = argparse.ArgumentParser(description="ComfyRun headless server")
     parser.add_argument("--setup", action="store_true", help="Run first-time setup (clone ComfyUI, download models)")
     parser.add_argument("--tunnel", action="store_true", help="Expose the server via a Cloudflare quick tunnel")
-    parser.add_argument("--mock", action="store_true", help="Run without ComfyUI: simulate jobs with placeholder outputs (no GPU needed)")
     parser.add_argument("--port", type=int, default=config.API_PORT)
     parser.add_argument("--host", type=str, default=config.API_HOST)
     parser.add_argument("--skip-comfy", action="store_true", help="Do not spawn the ComfyUI daemon")
@@ -425,21 +420,14 @@ def main() -> None:
         import setup as setup_mod
 
         setup_mod.run_setup()
-        print("Setup complete - start the server with: bash run.sh --real")
+        print("Setup complete - start the server with: bash run.sh")
         return
 
-    if args.mock and not USE_MOCK:
-        USE_MOCK = True
-        comfy = _build_bridge(True)
-        job_manager.comfy = comfy
-        logger.info("Running in MOCK mode (--mock): jobs are simulated.")
-
     if args.tunnel:
-        tunnel.start(
-            port=args.port,
-            on_url=lambda url: logger.info("Public tunnel URL: %s", url),
-            log_path=config.CLOUDFLARED_LOG,
-        )
+        # Actual startup happens in lifespan() AFTER the server is ready.
+        global TUNNEL_ENABLED, RUN_PORT
+        TUNNEL_ENABLED = True
+        RUN_PORT = args.port
 
     global SKIP_COMFY
     SKIP_COMFY = args.skip_comfy

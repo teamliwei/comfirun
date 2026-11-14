@@ -5,52 +5,51 @@ atomic manifest + Cloudflare quick tunnel + live WebSocket telemetry.
 This repository is the server side only; pair it with the ComfyRun
 CustomTkinter desktop client.
 
-## Quick test on Colab (no GPU needed)
+## Running on Colab
 
-Clone, bootstrap, run — one cell. The server starts **in the background**
-and the cell returns as soon as the tunnel URL is printed:
+Clone, install, run. `run.sh` only starts the server; it installs nothing.
 
 ```python
 !git clone https://github.com/teamliwei/comfirun.git
-%cd /content/comfirun
-!bash run.sh
+%cd /content/comfirun/server
+!bash setup.sh        # one-time: dependencies + cloudflared + ComfyUI + models
+!bash run.sh          # start the real server (needs a GPU runtime)
 ```
 
-Watch the output for:
+The server starts **in the background** and the cell returns only when the
+API answers requests — the URL block is never printed while the server is
+still initializing:
 
 ```
 =======================================================
-  SERVER IS UP
+  SERVER IS UP (running in background)
   URL:  https://xxxx.trycloudflare.com
 =======================================================
 ```
 
-Point the ComfyRun desktop client at that URL and submit jobs — they are
-simulated and return placeholder outputs, so you can verify the full
-pipeline (queue, progress, results zip) end to end.
+Point the ComfyRun desktop client at that URL and submit real jobs.
 
 Useful follow-ups:
 - `!tail -n 50 server.log` — live server logs
 - `bash run.sh stop` — stop the background server
-- `bash run.sh --real` — restart in real mode (after `--setup`)
 
 ## Real generation (GPU runtime + models)
 
 One-time setup (long: clones ComfyUI + 6 custom nodes, downloads the Qwen
-Image 2.1 / SCAIL-2 model set):
+Image 2.1 / SCAIL-2 model set). `setup.sh` never starts a server:
 
 ```bash
-bash run.sh --setup
+bash setup.sh
 ```
 
-Then run with the real ComfyUI bridge — startup blocks until ComfyUI's API
-is ready before accepting requests:
+Then run — startup blocks until ComfyUI's API is ready before accepting
+requests, and the tunnel URL appears only after that:
 
 ```bash
-bash run.sh --real
+bash run.sh
 ```
 
-`--real` spawns ComfyUI as a managed subprocess on `127.0.0.1:8188`
+`run.sh` spawns ComfyUI as a managed subprocess on `127.0.0.1:8188`
 (`--lowvram`). Models stay warm between consecutive jobs of the same
 workflow and are unloaded on workflow transitions.
 
@@ -72,7 +71,7 @@ workflow and are unloaded on workflow transitions.
 
 Environment variables: `COMFYRUN_DATA_DIR`, `COMFYRUN_API_HOST`,
 `COMFYRUN_API_PORT`, `COMFYRUN_COMFY_PORT`, `COMFYRUN_COMFY_DIR`,
-`COMFYRUN_COMFY_ARGS`, `COMFYRUN_MOCK`, `HF_TOKEN`.
+`COMFYRUN_COMFY_ARGS`, `HF_TOKEN`.
 
 Runtime data lives under `data/` (manifest, logs, inputs, outputs, tmp) and
 is never wiped by reruns; unfinished jobs are re-enqueued after a restart.

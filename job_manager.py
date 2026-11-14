@@ -223,7 +223,9 @@ class JobManager:
                 # jobs of the same workflow (warm retention).
                 if self.comfy:
                     await self.comfy.free_memory(unload_models=False)
-                purge_memory()
+                # gc/torch cache reclaim can block for seconds: keep it off
+                # the event loop so WS pings keep flowing.
+                await asyncio.to_thread(purge_memory)
                 await self.save_manifest_locked()
                 self.queue.task_done()
 
@@ -238,20 +240,23 @@ class JobManager:
                 job.workflow_id,
             )
             await self.comfy.free_memory(unload_models=True)
-            purge_memory()
+            await asyncio.to_thread(purge_memory)
         self.current_workflow_id = job.workflow_id
 
         input_dir = config.DATA_DIR / job.inputs_path
         output_dir = config.DATA_DIR / job.outputs_path
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Map input slots (extensionless) to their stored filenames for
-        # template injection: e.g. "image_1" -> "image_1.jpg".
-        input_files = (
-            {p.stem: p.name for p in sorted(input_dir.iterdir()) if p.is_file()}
-            if input_dir.exists()
-            else {}
-        )
+        # Upload every stored input file into ComfyUI's input directory and
+        # map input slots (extensionless stems) to the remote filename for
+        # template injection: e.g. "image_1" -> "image_1.jpg". Without this
+        # upload step the graph references files ComfyUI has never seen and
+        # every job fails at its LoadImage / video-loader node.
+        input_files: dict[str, str] = {}
+        if input_dir.exists():
+            for p in sorted(input_dir.iterdir()):
+                if p.is_file():
+                    input_files[p.stem] = await self.comfy.upload_input(p, p.name)
 
         graph = build_prompt_graph(job.workflow_id, job.params, input_files)
         prompt_id = await self.comfy.submit(graph)
