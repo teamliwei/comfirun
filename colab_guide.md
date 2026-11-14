@@ -18,13 +18,16 @@ actually answers requests - never while initialization is still running.
 ```python
 %cd /content
 !git clone https://github.com/teamliwei/comfirun.git
-%cd /content/comfirun/server
+%cd /content/comfirun
 ```
+
+The deployment repo contains the server files at its root (main.py, run.sh,
+setup.sh ...).
 
 ## 2. Existing runtime - update to the latest version
 
 ```python
-%cd /content/comfirun/server
+%cd /content/comfirun
 !git pull
 ```
 

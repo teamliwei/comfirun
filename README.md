@@ -11,7 +11,7 @@ Clone, install, run. `run.sh` only starts the server; it installs nothing.
 
 ```python
 !git clone https://github.com/teamliwei/comfirun.git
-%cd /content/comfirun/server
+%cd /content/comfirun
 !bash setup.sh        # one-time: dependencies + cloudflared + ComfyUI + models
 !bash run.sh          # start the real server (needs a GPU runtime)
 ```
